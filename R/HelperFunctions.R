@@ -1,3 +1,20 @@
+# check and install required packages
+requiredPackages <- c("data.table", "ggplot2", "ggdist", "readxl", "cmdstanr", "bayestestR", "posterior", "doFuture", "rmarkdown", "knitr")
+invisible(lapply(requiredPackages,
+                 FUN = function(package) {
+                   if(!require(package, character.only = T)) {
+                     if(package == "cmdstanr") {
+                       message("Downloading and installing cmdstanr")
+                       install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOption("repos")))
+                       message("Please visit https://mc-stan.org/cmdstanr/articles/cmdstanr.html check for how to finish installing cmdstanr")
+                     } else {
+                       message(paste("Downloading and installing", package))
+                       install.packages(package)
+                     }
+                   }
+                   })
+          )
+
 LoadFiles <- function(FolderPath, FileString, ConstructString) {
   FileDirectory <- paste(sep = "/", FolderPath, FileString)
   AssayData <- suppressWarnings(suppressMessages(rbindlist(lapply(X = seq_along(FileDirectory), FUN = function(x) {
@@ -45,14 +62,12 @@ AssayDataConstruction <- function(AssayData, LoadMetaData) {
                                   retinal = ifelse(test = any(grepl(pattern = "retinal", x = ColumnNames)), yes = retinal, no = NA),
                                   culture = ifelse(test = any(grepl(pattern = "culture", x = ColumnNames)), yes = culture, no = NA),
                                   plate = ifelse(test = any(grepl(pattern = "plate", x = ColumnNames)), yes = plate, no = NA),
-                                  expression_time = ifelse(test = any(grepl(pattern = "expression time", x = ColumnNames)), yes = `expression time`, no = NA),
-                                  illumination_time = ifelse(test = any(grepl(pattern = "ill. Time", x = ColumnNames, )), yes = as.numeric(`ill. Time ms`), no = NA),
-                                  well_n = ifelse(test = any(grepl(pattern = "well", x = ColumnNames)), `n (=well)`, no = NA),
-                                  Auswertung = ifelse(test = any(grepl(pattern = "Auswertung", x = ColumnNames)), yes = Auswertung, no = NA)),by=rownames(LoadMetaData)]
+                                  illumination_time = ifelse(test = any(grepl(pattern = "ill. time", x = ColumnNames, )), yes = as.numeric(`ill. time ms`), no = NA),
+                                  well_n = ifelse(test = any(grepl(pattern = "well", x = ColumnNames)), `n (=well)`, no = NA)), by=rownames(LoadMetaData)]
   LoadMetaData[,plate:=gsub(pattern = "plate| ", replacement = "", x = plate),by=plate]
   LoadMetaData[,well_n:=gsub(pattern = "n| ", replacement = "", x = well_n),by=well_n]
-  LoadMetaData[grepl(pattern = "jelly", x = construct, ignore.case = T),construct:="JellyRho"][
-    grepl(pattern = "bov", x = construct, ignore.case = T),construct:="bovRho"]
+  LoadMetaData[grepl(pattern = "jelly", x = construct, ignore.case = T),construct:="JellyOp-mScarlet"][
+    grepl(pattern = "bov", x = construct, ignore.case = T),construct:="bovRho-mScarlet"]
   LoadMetaData[grepl(pattern = "atr", x = retinal, ignore.case = T),retinal:="ATR"]
   LoadMetaData[,rownames:=NULL,]
   LoadMetaData <- LoadMetaData[rep(1: .N, each = 12),]
@@ -108,18 +123,17 @@ InitChains <- function(Chains, stanData) {
          L_Omega_Plate = matrix(data = rnorm(n = (stanData$GroupN+3)^2, mean = 0, sd = 0.01), nrow = stanData$GroupN+3, ncol = stanData$GroupN+3),
          z_Plate = matrix(data = rgamma(n = (stanData$GroupN+3)*stanData$PlateN, shape = 100, rate = 100/0.1), nrow = stanData$GroupN+3, ncol = stanData$PlateN),
          tau_Group = rgamma(n = 1, shape = 1000, rate = 1000/0.1),
-         z_Group = rgamma(n = stanData$GroupN, shape = 100, rate = 100/0.1), #matrix(data = rgamma(n = 1*stanData$GroupN, shape = 100, rate = 100/0.1), nrow = 1, ncol = stanData$GroupN),
+         z_Group = rgamma(n = stanData$GroupN, shape = 100, rate = 100/0.1),
          betaBandMean = rbeta(n = 1, shape1 = 10, shape2 = 10),
          betaBandShape = rgamma(n = 1, shape = 200, rate = 200/20),
          betaMax_1 = rgamma(n = 1, shape = 4000, rate = 4000/189),
          betaMax_2 = rgamma(n = 1, shape = 3000, rate = 3000/0.315),
          bBetaBand_1_raw = rnorm(n = 1, mean = 0, sd = 0.1),
          beta_AlphaGroup_raw = rnorm(n = stanData$GroupN-1, mean = 0, sd = 0.001),
-         beta_A_1_Group = rnorm(n = stanData$GroupN-1, mean = 0, sd = 0.001),
-         beta_A_0_Group = rnorm(n = stanData$GroupN-1, mean = 0, sd = 0.001),
-         log_A_1 = rnorm(n = 1, mean = 3, sd = .1),
-         A_0 = rgamma(n = 1, shape = 1000, rate = 1000/0.4),
-         A_1 = rgamma(n = 1, shape = 20, rate = 20/10000),
+         beta_I_50_Group = rnorm(n = stanData$GroupN-1, mean = 0, sd = 0.001),
+         beta_activity_max_Group = rnorm(n = stanData$GroupN-1, mean = 0, sd = 0.001),
+         activity_max = rgamma(n = 1, shape = 1000, rate = 1000/0.4),
+         I_50 = rgamma(n = 1, shape = 20, rate = 20/10000),
          Dark_shape = rgamma(n = 1, shape = 3, rate = 3/15),
          Dark_beta = rnorm(n = 1, mean = log(0.05), sd = 1),
          Dark_Group_beta = rnorm(n = stanData$DarkGroupN-1, mean = 0, sd = 0.25))
@@ -204,41 +218,57 @@ calculate_HDI_95 <- function(x) {
   return(list(Mean=mean(x),Median=median(x),CIlow = hdi95[2], CIhigh = hdi95[3]))
 }
 
-lambda_max_Plate_Group <- function(Group, Plate) {
+lambda_max_Plate_Group <- function(Group, Plate, Sample=NA) {
+  if(anyNA(Sample)) {
+    Sample <- seq_along(BaseVariables$lambda_max)
+  }
     if(Group == 1) {
-      as.vector(exp(log(BaseVariables$lambda_max) + betas_Plate_list[[3]][,Plate]))  
+      as.vector(exp(log(BaseVariables$lambda_max[Sample]) + betas_Plate_list[[3]][,Plate][Sample]))  
     } else {
-      as.vector(exp(log(BaseVariables$lambda_max) + beta_AlphaGroup[,Group-1] + betas_Plate_list[[3]][,Plate]))  
+      as.vector(exp(log(BaseVariables$lambda_max[Sample]) + beta_AlphaGroup[,Group-1][Sample] + betas_Plate_list[[3]][,Plate][Sample]))  
     }
 }
 
-A_0_Plate_Group <- function(Group, Plate) {
+activity_max_Plate_Group <- function(Group, Plate, Sample=NA) {
+  if(anyNA(Sample)) {
+    Sample <- seq_along(BaseVariables$activity_max)
+  }
     if(Group == 1) {
-        as.vector(exp(log(BaseVariables$A_0) + betas_Plate_list[[2]][,Plate]))
+        as.vector(exp(log(BaseVariables$activity_max[Sample]) + betas_Plate_list[[2]][,Plate][Sample]))
     } else {
-        as.vector(exp(log(BaseVariables$A_0) + betas_Plate_list[[2]][,Plate] + beta_A_0_Group[,Group-1]))
+        as.vector(exp(log(BaseVariables$activity_max[Sample]) + betas_Plate_list[[2]][,Plate][Sample] + beta_activity_max_Group[,Group-1][Sample]))
     }
- # as.vector(exp(log(BaseVariables$A_0) + betas_Plate_list[[2]][,Plate] + betas_Group_list[[1]][,Group]))
 }
 
-shape_Plate_Group <- function(Group, Plate) {
-  as.vector(exp(log(BaseVariables$shape) + betas_Plate_list[[1]][,Plate] + betas_Group[,Group]))
+shape_Plate_Group <- function(Group, Plate, Sample=NA) {
+  if(anyNA(Sample)) {
+    Sample <- seq_along(BaseVariables$shape)
+  }
+  as.vector(exp(log(BaseVariables$shape[Sample]) + betas_Plate_list[[1]][,Plate][Sample] + betas_Group[,Group][Sample]))
 }
 
-A_1_Group_Plate_Wavelength <- function(Group, Plate, Wavelength) {
-  lambda_max_tmp <- lambda_max_Plate_Group(Group, Plate)
-  spectrum <- ActivityOptim(LambdaMax=lambda_max_tmp, x=Wavelength, i=seq_along(lambda_max_tmp))
-  if(Group==1) {
-    as.vector(exp(log(BaseVariables$A_1)) / spectrum)
+I_50_Group_Plate_Wavelength <- function(Group, Plate, Wavelength, Sample=NA) {
+  if(anyNA(Sample)) {
+    lambda_max_tmp <- lambda_max_Plate_Group(Group, Plate)
+    Sample <- seq_along(lambda_max_tmp)
   } else {
-    as.vector(exp(log(BaseVariables$A_1) + beta_A_1_Group[,Group-1]) / spectrum)
+    lambda_max_tmp <- lambda_max_Plate_Group(Group, Plate)[Sample]
+  }
+  spectrum <- ActivityOptim(LambdaMax=lambda_max_tmp, x=Wavelength, i=Sample)
+  if(Group==1) {
+    as.vector(exp(log(BaseVariables$I_50[Sample])) / spectrum)
+  } else {
+    as.vector(exp(log(BaseVariables$I_50[Sample]) + beta_I_50_Group[,Group-1][Sample]) / spectrum)
   }
 }
 
-dark_mu_Plate_Group <- function(Group, Plate) {
-    tmpOut <- BaseVariables$Dark_beta + betas_Plate_list[[4]][,Plate]# + betas_Group_list[[3]][,Group]
+dark_mu_Plate_Group <- function(Group, Plate, Sample=NA) {
+  if(anyNA(Sample)) {
+    Sample <- seq_along(BaseVariables$Dark_beta)
+  }
+    tmpOut <- BaseVariables$Dark_beta[Sample] + betas_Plate_list[[4]][,Plate][Sample]# + betas_Group_list[[3]][,Group]
     if(Group != 1) {
-        return(exp(as.vector(tmpOut + Dark_Group_beta[,Group-1] + betas_Plate_list[[3+Group]][,Plate])))
+        return(exp(as.vector(tmpOut + Dark_Group_beta[,Group-1][Sample] + betas_Plate_list[[3+Group]][,Plate][Sample])))
         #        return(exp(as.vector(tmpOut + Dark_Group_beta[,Group-1] + betas_Plate_list[[4+Group]][,Plate])))
     } else {
         return(exp(as.vector(tmpOut)))
@@ -263,11 +293,145 @@ PeakDetection <- function(Sample, lambda_max, interval=c(400,700)) {
   return(list(PeakLocation=tmp$maximum, PeakAmplitude=tmp$objective))
   }
 
+Spectrum <- function(x, Wavelength=381:661, Group, Plate, illumination_time, Sample=NA, HDI=F, dark_activity=T) {
+  
+  lambda_max_Plate_Group <- function(Group, Plate, Sample=NA) {
+    if(anyNA(Sample)) {
+      Sample <- seq_along(BaseVariables$lambda_max)
+    }
+    if(Group == 1) {
+      as.vector(exp(log(BaseVariables$lambda_max[Sample]) + betas_Plate_list[[3]][,Plate][Sample]))  
+    } else {
+      as.vector(exp(log(BaseVariables$lambda_max[Sample]) + beta_AlphaGroup[,Group-1][Sample] + betas_Plate_list[[3]][,Plate][Sample]))  
+    }
+  }
+  
+  activity_max_Plate_Group <- function(Group, Plate, Sample=NA) {
+    if(anyNA(Sample)) {
+      Sample <- seq_along(BaseVariables$activity_max)
+    }
+    if(Group == 1) {
+      as.vector(exp(log(BaseVariables$activity_max[Sample]) + betas_Plate_list[[2]][,Plate][Sample]))
+    } else {
+      as.vector(exp(log(BaseVariables$activity_max[Sample]) + betas_Plate_list[[2]][,Plate][Sample] + beta_activity_max_Group[,Group-1][Sample]))
+    }
+  }
+  
+  shape_Plate_Group <- function(Group, Plate, Sample=NA) {
+    if(anyNA(Sample)) {
+      Sample <- seq_along(BaseVariables$shape)
+    }
+    as.vector(exp(log(BaseVariables$shape[Sample]) + betas_Plate_list[[1]][,Plate][Sample] + betas_Group[,Group][Sample]))
+  }
+  
+  I_50_Group_Plate_Wavelength <- function(Group, Plate, Wavelength, Sample=NA) {
+    lambda_max_tmp <- lambda_max_Plate_Group(Group, Plate)[Sample]
+    if(anyNA(Sample)) {
+      Sample <- seq_along(lambda_max_tmp)
+    }
+    spectrum <- ActivityOptim(LambdaMax=lambda_max_tmp, x=Wavelength, i=Sample)
+    if(Group==1) {
+      as.vector(exp(log(BaseVariables$I_50[Sample])) / spectrum)
+    } else {
+      as.vector(exp(log(BaseVariables$I_50[Sample]) + beta_I_50_Group[,Group-1][Sample]) / spectrum)
+    }
+  }
+  
+  dark_mu_Plate_Group <- function(Group, Plate, Sample=NA) {
+    if(anyNA(Sample)) {
+      Sample <- seq_along(BaseVariables$Dark_beta)
+    }
+    tmpOut <- BaseVariables$Dark_beta[Sample] + betas_Plate_list[[4]][,Plate][Sample]# + betas_Group_list[[3]][,Group]
+    if(Group != 1) {
+      return(exp(as.vector(tmpOut + Dark_Group_beta[,Group-1][Sample] + betas_Plate_list[[3+Group]][,Plate][Sample])))
+    } else {
+      return(exp(as.vector(tmpOut)))
+    }
+  }
+  
+  ActivityOptim <- function(LambdaMax=500, x, i=1) {
+    lambda_beta_max <-  BaseVariables$betaMax_1[i] + BaseVariables$betaMax_2[i] * LambdaMax
+    
+    b_betaBand <- BaseVariables$bBetaBand_1[i] + BaseVariables$betaBandwidth[i] * LambdaMax
+    beta_band <- BaseVariables$betaBandFactor[i] * exp( -((x-lambda_beta_max) / b_betaBand)^2);
+    max_div_lambda <- LambdaMax / x;
+    
+    mu_vec <- 1/(exp(BaseVariables$A[i] * (BaseVariables$a_1[i]+BaseVariables$a_2[i]*exp( - ((LambdaMax-300)^2)/11940.0) - max_div_lambda)) +
+                   exp(BaseVariables$B[i] * (BaseVariables$b[i] - max_div_lambda)) +
+                   exp(BaseVariables$C[i] * (BaseVariables$c[i] - max_div_lambda)) +
+                   BaseVariables$D[i])
+    mu_vec <- mu_vec * (exp(BaseVariables$A[i] * (BaseVariables$a_1[i]+BaseVariables$a_2[i]*exp(- ((LambdaMax-300)^2)/11940)-1)) +
+                          exp(BaseVariables$B[i] * (BaseVariables$b[i]-1)) +
+                          exp(BaseVariables$C[i] * (BaseVariables$c[i]-1)) +
+                          BaseVariables$D[i])
+    mu_vec <- mu_vec + beta_band
+    mu_vec <- mu_vec / (1+BaseVariables$betaBandFactor[i] * exp( - ((LambdaMax-lambda_beta_max) / (b_betaBand))^2))
+    return(mu_vec)
+  }
+  
+  BaseVariables <- posterior::subset_draws(posterior::as_draws_df(x), variable = c("A", "B", "C", "D",
+                                                                                   "a_1", "a_2", "b", "c",
+                                                                                   "betaMax_1", "betaMax_2",
+                                                                                   "betaBandFactor", "betaBandwidth", "bBetaBand_1",
+                                                                                   "shape", "lambda_max", "Dark_beta", "activity_max", "I_50"))
+  if(anyNA(Sample) | HDI) {
+    if(HDI & (length(Sample)<length(BaseVariables$lambda_max))) {
+      if(!anyNA(Sample)) {
+        message("Overwrite Sample: Use full length of Sample for HDI")
+      }
+    }
+    Sample <- seq_along(BaseVariables$lambda_max)
+  }
+  posterior::subset_draws(posterior::as_draws_matrix(x), variable = "beta_AlphaGroup")
+  ModelDraws <- posterior::as_draws_matrix(x)
+  beta_AlphaGroup <- posterior::subset_draws(ModelDraws, variable = c("beta_AlphaGroup"))
+  beta_activity_max_Group <- posterior::subset_draws(ModelDraws, variable = c("beta_activity_max_Group"))
+  Dark_Group_beta <-  posterior::subset_draws(ModelDraws, variable = c("Dark_Group_beta"))
+  beta_I_50_Group <- posterior::subset_draws(ModelDraws, variable = c("beta_I_50_Group"))
+  betas_Group <- posterior::subset_draws(ModelDraws, variable = c("betas_Group"))
+  GroupN <- ncol(betas_Group)
+  betas_Plate <- posterior::subset_draws(ModelDraws, variable = c("betas_Plate"))
+  betas_Plate_list <- lapply(X = 1:(3+GroupN), FUN = function(plate) {
+    betas_Plate[,grepl(pattern = paste0(",",plate,"\\]"), x = colnames(betas_Plate))]
+  })
+  
+  GroupPlateIndex <- data.table(Group, Plate,illumination_time)
+  LambdaMaxPlateGroup <- GroupPlateIndex[,.(LambdaMax=lambda_max_Plate_Group(Group, Plate, Sample),
+                                            DarkMu=dark_mu_Plate_Group(Group, Plate,Sample)),
+                                         by=.(Group,Plate,illumination_time)][,Sample:=Sample,by=.(Group,Plate,illumination_time)]
+  if(HDI==T) {
+      I50_activityMax_Group_Plate_DT <- GroupPlateIndex[,.(Wavelength=Wavelength),by=.(Group,Plate,illumination_time)][
+        ,.(DarkActivity=dark_mu_Plate_Group(Group,Plate,Sample),
+           activityMax=activity_max_Plate_Group(Group,Plate,Sample),
+           I50=I_50_Group_Plate_Wavelength(Group, Plate, Wavelength = Wavelength,Sample),
+           shape=shape_Plate_Group(Group, Plate,Sample),
+           Sample=Sample),by=.(Group,Plate,Wavelength, illumination_time)]
+      if(dark_activity) {
+        I50_activityMax_Group_Plate_DT[,Activity_mu:=(activityMax*illumination_time)/(I50+illumination_time)+DarkActivity,][,Activity:=rgamma(n = .N, shape = shape, rate = shape/Activity_mu),]
+      } else {
+        I50_activityMax_Group_Plate_DT[,Activity_mu:=(activityMax*illumination_time)/(I50+illumination_time),][,Activity:=rgamma(n = .N, shape = shape, rate = shape/Activity_mu),]
+      }
+      rbindlist(l = list(I50_activityMax_Group_Plate_DT[,c(calculate_HDI(x = Activity_mu), "Type"="Activity_mu"),by=.(Group, Plate,Wavelength)],I50_activityMax_Group_Plate_DT[,c(calculate_HDI(x = Activity), "Type"="Activity"),by=.(Group, Plate,Wavelength)]))
+  } else {
+    I50_activityMax_Group_Plate_DT <- GroupPlateIndex[,.(Wavelength=Wavelength),by=.(Group,Plate,illumination_time)][
+      ,.(DarkActivity=dark_mu_Plate_Group(Group,Plate,Sample),
+         activityMax=activity_max_Plate_Group(Group,Plate,Sample),
+         I50=I_50_Group_Plate_Wavelength(Group, Plate, Wavelength = Wavelength,Sample),
+         shape=shape_Plate_Group(Group, Plate,Sample),
+         Sample=Sample),by=.(Group,Plate,Wavelength, illumination_time)]
+    if(dark_activity) {
+      I50_activityMax_Group_Plate_DT[,Activity_mu:=(activityMax*illumination_time)/(I50+illumination_time)+DarkActivity,][,Activity:=rgamma(n = .N, shape = shape, rate = shape/Activity_mu),]
+    } else {
+      I50_activityMax_Group_Plate_DT[,Activity_mu:=(activityMax*illumination_time)/(I50+illumination_time),][,Activity:=rgamma(n = .N, shape = shape, rate = shape/Activity_mu),]
+    }
+    return(I50_activityMax_Group_Plate_DT)
+  }
+}
+
 
 DiffPaste <- function(x, y) {
   paste(x, y, sep = " - ")
 }
-
 
 ModelRun <- function(stanData,
                      n_chains,
@@ -295,8 +459,7 @@ ModelRun <- function(stanData,
                            seed=123,
                            refresh = 200,
                            adapt_delta = adapt_delta,
-                           save_latent_dynamics = T,
-                           output_dir = output_path)
+                           save_latent_dynamics = F)
   if(save) {
     if(prior_only) {
       dirPath <- paste0(output_path, "Modelout_prior.rds")
