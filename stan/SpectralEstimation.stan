@@ -121,12 +121,12 @@ parameters {
   // group parameters
   vector[GroupN-1] beta_AlphaGroup_raw;
   vector[GroupN-1] Dark_Group_beta;
-  vector[GroupN-1] beta_A_0_Group;
-  vector[GroupN-1] beta_A_1_Group;
+  vector[GroupN-1] beta_activity_max_Group;
+  vector[GroupN-1] beta_I_50_Group;
   
   // dosage-saturation curve parameters
-  real<lower=0> A_0;
-  real<lower=0> A_1;
+  real<lower=0> activity_max;
+  real<lower=0> I_50;
   
   // dark activity
   real<lower=0> Dark_shape;
@@ -189,23 +189,23 @@ model {
   
   // fixed effects
   target += std_normal_lpdf(beta_AlphaGroup_raw);
-  target += normal_lpdf(beta_A_0_Group | 0, 0.5);
+  target += normal_lpdf(beta_activity_max_Group | 0, 0.5);
   target += normal_lpdf(Dark_Group_beta | 0, 1);
-  target += normal_lpdf(beta_A_1_Group | 0, .5);
+  target += normal_lpdf(beta_I_50_Group | 0, .5);
 
   // dark noise
   target += gamma_lpdf(Dark_shape | 4, 4/20.0);//15.0);
   target += normal_lpdf(Dark_beta | log(0.025), 1);
     
   // dosage-saturation curve
-  target += gamma_lpdf(A_0 | 7, 7/0.3);
-  target += gamma_lpdf(A_1 | 4, 4/7500.0);
+  target += gamma_lpdf(activity_max | 7, 7/0.3);
+  target += gamma_lpdf(I_50 | 4, 4/7500.0);
   
   // hierarchical parameters
   target += std_normal_lpdf(to_vector(z_Plate));
   target += lkj_corr_cholesky_lpdf(L_Omega_Plate | 2.0);
   target += normal_lpdf(tau_Plate[1] | 0, 0.1); //shape
-  target += normal_lpdf(tau_Plate[2] | 0, 0.05); // A_0
+  target += normal_lpdf(tau_Plate[2] | 0, 0.05); // activity_max
   target += normal_lpdf(tau_Plate[3] | 0, 0.0025); // lambda intercept
   target += normal_lpdf(tau_Plate[4] |0, 0.5); // Dark_mu intercept
   target += normal_lpdf(tau_Plate[5:(3 + GroupN)] | 0, 0.05); // Dark_mu_betas
@@ -227,8 +227,8 @@ model {
   vector[N] lambda_max_vec = LambdaMaxVec(N, GroupN, lambda_max, Group, beta_AlphaGroup, betas_Plate, Plate);
   
   // variables for beta band
-  vector[N] A1_mu_inv = SpectrumVector(N, lambda, lambda_max_vec, A, B, C, D, a_1, a_2, b, c, betaMax_1, betaMax_2, bBetaBand_1, betaBandwidth, betaBandFactor);
-  vector[N] Activity_mu  = exp(log(A_0) + betas_Plate[Plate, 2] + Group * beta_A_0_Group + log(illumination_time)) ./ (exp(log(A_1) + Group * beta_A_1_Group) ./ A1_mu_inv + illumination_time);
+  vector[N] I50_mu_inv = SpectrumVector(N, lambda, lambda_max_vec, A, B, C, D, a_1, a_2, b, c, betaMax_1, betaMax_2, bBetaBand_1, betaBandwidth, betaBandFactor);
+  vector[N] Activity_mu  = exp(log(activity_max) + betas_Plate[Plate, 2] + Group * beta_activity_max_Group + log(illumination_time)) ./ (exp(log(I_50) + Group * beta_I_50_Group) ./ I50_mu_inv + illumination_time);
 
   if(!priorOnly) {
     target += gamma_lpdf(DarkActivity | Dark_shape, Dark_shape/Dark_mu);
@@ -244,8 +244,8 @@ generated quantities {
     vector[N] shape_vec = exp(log(shape) + betas_Plate[Plate, 1] + betas_Group[GroupID]);
 
     // variables for beta band
-    vector[N] A1_mu_inv = SpectrumVector(N, lambda, lambda_max_vec, A, B, C, D, a_1, a_2, b, c, betaMax_1, betaMax_2, bBetaBand_1, betaBandwidth, betaBandFactor);
-    vector[N] Activity_mu  = exp(log(A_0) + betas_Plate[Plate, 2] + Group * beta_A_0_Group + log(illumination_time)) ./ (exp(log(A_1) + Group * beta_A_1_Group) ./ A1_mu_inv + illumination_time);
+    vector[N] I50_mu_inv = SpectrumVector(N, lambda, lambda_max_vec, A, B, C, D, a_1, a_2, b, c, betaMax_1, betaMax_2, bBetaBand_1, betaBandwidth, betaBandFactor);
+    vector[N] Activity_mu  = exp(log(activity_max) + betas_Plate[Plate, 2] + Group * beta_activity_max_Group + log(illumination_time)) ./ (exp(log(I_50) + Group * beta_I_50_Group) ./ I50_mu_inv + illumination_time);
 
     for(n in 1:N) {
         log_lik[n] = gamma_lpdf(Activity[n] | shape_vec[n], shape_vec[n] / (Activity_mu[n]+Dark_mu_full[n]));
