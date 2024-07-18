@@ -102,7 +102,7 @@ samples from the posterior distribution. If you have less than 5 cores
 available you can reduce also the number of parallel chains
 (`n_chains`). Running the model on your machine can take some time. Be
 aware that in the current state the estimation is computationally
-intensive and can depending on the size of the data set take several
+intensive and can, depending on the size of the data set, take several
 hours. The simple data set analysing the different retinals (as shown
 here), however, will take roughly 20 minutes.
 
