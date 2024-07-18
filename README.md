@@ -19,7 +19,7 @@ Because it is a Bayesian model all parameters can also be used to
 reproduce the expected spectral activity for any given wavelength
 ($\lambda$). In short, the model is used to fit spectral activity data
 assuming the measurements are distributed as a $Gamma$-distribution
-($activity_{p,g,\lambda} = Gamma(shape_{p,g}, \frac{shape_{p,g}}{\mu_{activity_{p,g,\lambda}}})$),
+($`activity_{p,g,\lambda} = Gamma(shape_{p,g}, \frac{shape_{p,g}}{\mu_{activity_{p,g,\lambda}}}`)$),
 where $\mu_{activity}$ depends on the wavelength ($\lambda$), the
 experimental group ($g$), and the partially the experimental plate
 ($p$). In contrast, the $shape$ parameter is assumed to be constant over
@@ -112,6 +112,18 @@ n_cores <- 10 # number of cores to use for parallel processing
 n_chains <- 5 # number of parallel chains (each on one CPU thread) for model
 n_samples <- 20000 # number of samples to draw from posterior distribution
 ```
+
+To run the model on the retinal data set you can run the content of the
+file `R/RunModelOn10sRetinalData.R`. This file will load the data, run
+the model, and save the model output. The model output can then be
+analysed by running `R/ModelOutput_10sRetinal.R`, which will generate
+plots and reports, but also allows you to further explore the model
+output. The results can be found in the folder `output` which will be
+automatically generated. Running the scripts will also initiate a check
+to look for required packages. Packages which are missing will be
+installed automatically. In case of installing `cmdstanr` some
+additional steps are required. Please consult the `cmdstanr` manual
+(<https://mc-stan.org/cmdstanr/articles/cmdstanr.html>).
 
 <div id="refs" class="references csl-bib-body hanging-indent"
 entry-spacing="0">
