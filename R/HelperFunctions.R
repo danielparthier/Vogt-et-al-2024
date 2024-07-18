@@ -14,6 +14,7 @@ invisible(lapply(requiredPackages,
                    }
                    })
           )
+source("R/settings.R")
 
 LoadFiles <- function(FolderPath, FileString, ConstructString) {
   FileDirectory <- paste(sep = "/", FolderPath, FileString)
