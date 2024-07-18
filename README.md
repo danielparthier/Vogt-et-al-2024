@@ -19,7 +19,7 @@ Because it is a Bayesian model all parameters can also be used to
 reproduce the expected spectral activity for any given wavelength
 ($\lambda$). In short, the model is used to fit spectral activity data
 assuming the measurements are distributed as a $Gamma$-distribution
-($`activity_{p,g,\lambda} = Gamma(shape_{p,g}, \frac{shape_{p,g}}{\mu_{activity_{p,g,\lambda}}}`)$),
+($`activity_{p,g,\lambda} = Gamma(shape_{p,g}, \frac{shape_{p,g}}{\mu_{activity_{p,g,\lambda}}})`$),
 where $\mu_{activity}$ depends on the wavelength ($\lambda$), the
 experimental group ($g$), and the partially the experimental plate
 ($p$). In contrast, the $shape$ parameter is assumed to be constant over
