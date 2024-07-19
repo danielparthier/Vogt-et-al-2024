@@ -4,7 +4,7 @@ Vogt et al. 2024
 ## Description
 
 This repository contains code to model functional activity of opsins
-based on the spectral density template developed by Govardovskii et al.
+based on the spectral density template developed by 
 Govardovskii et al. ([2000](#ref-govardovskii_search_2000)). The code
 estimates spectral density in a Bayesian framework and incorporated
 hierarchical experimental structure using *Stan* ([Carpenter et al.
@@ -21,7 +21,7 @@ reproduce the expected spectral activity for any given wavelength
 assuming the measurements are distributed as a $Gamma$-distribution
 ($`activity_{p,g,\lambda} = Gamma(shape_{p,g}, \frac{shape_{p,g}}{\mu_{activity_{p,g,\lambda}}})`$),
 where $\mu_{activity}$ depends on the wavelength ($\lambda$), the
-experimental group ($g$), and the partially the experimental plate
+experimental group ($g$), and the experimental plate
 ($p$). In contrast, the $shape$ parameter is assumed to be constant over
 the wavelength ($\lambda$), but conditional on the experimental group
 and plate. The possible differences between plates and groups reflect
@@ -30,14 +30,14 @@ parameter defining the location of the spectral peak is $\lambda_{max}$,
 the peak of the $\alpha$-peak. However, as mentioned in Govardovskii et
 al. ([2000](#ref-govardovskii_search_2000)) it does not reflect the
 actual maximum of the spectrum. Depending on the other parameters in the
-function differences between $\lambda_{max}$ and the actual peak
+function, the differences between $\lambda_{max}$ and the actual peak
 ($\lambda_{peak}$) can be drastic. Hence, $\lambda_{peak}$ has to be
 calculated after the estimation of the parameters by searching for the
 maximum of the spectral function.
 
-As we can see in the plot the model produces a wide range of possible
-spectral activity lines when not having “seen” any data (“Prior”). If we
-provide measurements the model will update its parameters to to explain
+The model produces a wide range of possible
+spectral activity lines when not having “seen” any data (“Prior”). Once we
+provide measurements the model will update its parameters to explain
 the data (“Posterior”). This results in the model estimating the 20,000
 most probable spectra for each condition (experimental group and plate).
 As we can see on the right side 5000 random draws of “mean-activity”
@@ -47,9 +47,9 @@ As we can see on the right side 5000 random draws of “mean-activity”
 
 <!-- ![](https://github.com/danielparthier/Vogt-et-al-2024/blob/master/Output/AnimatedSpectra.gif) -->
 
-The provided data points reduce the variance in possible spectra.
-However, information in the $\beta$-band is still very limited leading
-to a higher uncertainty in the estimates with a wavelength lower than
+The provided data points reduce the variance of the possible spectra.
+However, information in the $\beta$-band region is still very limited leading
+to a higher uncertainty in the estimates for any wavelength shorter than
 381 nm (see fluctuation in $\beta$-peak). The estimates for the region,
 however, are informed by the relationship of the $\beta$- and
 $\alpha$-peak as
@@ -83,7 +83,7 @@ it for different experimental groups and wavelength.
 ![](README_files/figure-gfm/Photosensitivity-1.png)<!-- -->
 
 Moreover, we estimate for any given experiment the peak location of the
-spectral activity and as mentioned before this leads to 20,000 estimates
+spectral activity. As mentioned before this leads to 20,000 estimates
 for any given combination (experimental group and plate). These draws
 reflect the distribution of probable spectral peaks and give us a range
 of the peaks with the uncertainty around the estimate. This uncertainty
@@ -103,7 +103,7 @@ available you can reduce also the number of parallel chains
 (`n_chains`). Running the model on your machine can take some time. Be
 aware that in the current state the estimation is computationally
 intensive and can, depending on the size of the data set, take several
-hours. The simple data set analysing the different retinals (as shown
+hours. A simple data set analysing three different conditions (e.g. three different retinals, as shown
 here), however, will take roughly 20 minutes.
 
 ``` r
