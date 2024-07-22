@@ -6,7 +6,7 @@ Vogt et al. 2024
 This repository contains code to model functional activity of opsins
 based on the spectral density template developed by 
 Govardovskii et al. ([2000](#ref-govardovskii_search_2000)). The code
-estimates spectral density in a Bayesian framework and incorporated
+estimates spectral density in a Bayesian framework and incorporates
 hierarchical experimental structure using *Stan* ([Carpenter et al.
 2017](#ref-carpenter_stan_2017); [Stan Development Team
 2023](#ref-stanManual)) via *cmdstanr* ([Gabry and Češnovar
